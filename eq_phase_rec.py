@@ -168,6 +168,37 @@ def oscillator_phase(state, ders, period, warmup_periods=5, thr=0.0, dt=0.005):
 	return 2*pi*(1-(time-dt_end)/period)
 
 
+def inside_limit_cycle(state, ders, period, dt=0.005):
+	"""determines whether the state is inside or outside the limit cycle based on the standard deviation of the trajectories forward and backward in time
+	
+	:param state: state of the system
+	:param ders: a list of state variable derivatives
+	:param period: oscillator period
+	:param dt: time step (default 0.005)
+	:return: true if inside limit cycle, false otherwise"""
+	state0 = state.copy()
+	# forward trajectory
+	forward = []
+	for i in range(floor(period/dt)):
+		state = one_step_integrator(state, ders, dt)
+		forward.append(state)
+	lc_avg_f = [sum([forward[i][s] for i in range(len(forward))])/len(forward) for s in range(len(ders))]
+	lc_std_f = [sum([(forward[i][s]-lc_avg_f[s])**2 for i in range(len(forward))])/len(forward) for s in range(len(ders))]
+	std_f = sum(lc_std_f)
+	# backward trajectory
+	state = state0
+	backward = []
+	for i in range(floor(period/dt)):
+		state = one_step_integrator(state, ders, -dt)
+		backward.append(state)
+	lc_avg_b = [sum([backward[i][s] for i in range(len(backward))])/len(backward) for s in range(len(ders))]
+	lc_std_b = [sum([(backward[i][s]-lc_avg_b[s])**2 for i in range(len(backward))])/len(backward) for s in range(len(ders))]
+	std_b = sum(lc_std_b)
+	if(std_f > std_b):
+		return True
+	return False
+
+
 def oscillator_amplitude(state, ders, period, floquet, zero_phase_lc, thr=0.0, dt=0.005):
 	"""calculates the isostable amplitude of the oscillator from dynamical equations
 	
@@ -182,7 +213,12 @@ def oscillator_amplitude(state, ders, period, floquet, zero_phase_lc, thr=0.0, d
 	phase = oscillator_phase(state, ders, period)
 	# evolve to 0 isochron
 	state = integrate_period(state, ders, (1-phase/(2*pi))*period, dt)
-	return distance(state,zero_phase_lc)*exp(floquet*phase/(2*pi)*period)
+	# amplitude sign
+	if(inside_limit_cycle(state, ders, period)):
+		sign = -1
+	else:
+		sign = 1
+	return 0.2*sign*distance(state,zero_phase_lc)*exp(floquet*(1-phase/(2*pi))*period) # multiplied with an arbitrary constant 0.2
 
 
 def oscillator_PRC(ders, direction, period, initial_state=None, initial_warmup_periods=10, stimulation=0.05, warmup_periods=3, dph=0.1, thr=0.0, dt=0.005):
@@ -231,7 +267,7 @@ def oscillator_PRC(ders, direction, period, initial_state=None, initial_warmup_p
 	return PRC
 
 
-def oscillator_ARC(ders, direction, period, floquet, initial_state=None, initial_warmup_periods=10, stimulation=0.05, dph=0.1, thr=0.0, dt=0.005):
+def oscillator_ARC(ders, direction, period, floquet, initial_state=None, initial_warmup_periods=15, stimulation=0.05, dph=0.1, thr=0.0, dt=0.005):
 	"""calculates the amplitude response curve from dynamical equations
 	
 	:param ders: a list of state variable derivatives
@@ -239,7 +275,7 @@ def oscillator_ARC(ders, direction, period, floquet, initial_state=None, initial
 	:param period: oscillator period
 	:param floquet: floquet exponent
 	:param initial_state: initial state (default None)
-	:param initial_warmup_periods: time for relaxing to the stable orbit (default 10)
+	:param initial_warmup_periods: time for relaxing to the stable orbit (default 15)
 	:param stimulation: strength of the stimulation (default 0.05)
 	:param dph: phase resolution (default 0.1)
 	:param thr: threshold for determining period (default 0.0)
