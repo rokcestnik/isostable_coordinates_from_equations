@@ -1,9 +1,14 @@
-from math import pi, floor, sqrt
+from math import pi, floor, sqrt, exp, log
 
 
 ###################################################
 #####   PHASE RECONSTRUCTION FROM EQUATIONS   #####
 ###################################################
+
+
+def distance(state1, state2):
+	"""the euclidian distance between two states"""
+	return sqrt(sum((state1[i]-state2[i])**2 for i in range(len(state1))))
 
 
 def one_step_integrator(state, ders, dt):
@@ -80,6 +85,64 @@ def oscillator_period(ders, initial_state=None, warmup_time=1500.0, thr=0.0, dt=
 	return time + dt_beggining - dt_end
 
 
+def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shift=0.05, dph=0.1, thr=0.0, dt=0.005):
+	"""calculates the floquet exponent of the oscillator from dynamical equations
+	
+	:param ders: a list of state variable derivatives
+	:param period: oscillator period
+	:param initial_state: initial state (default None)
+	:param warmup_time: time for relaxing to the stable orbit (default 1000)
+	:param shift: proportional shift of the points from the limit cycle (default 0.01)
+	:param dph: phase resolution (default 0.1)
+	:param thr: threshold for determining period (default 0.0)
+	:param dt: time step (default 0.005)
+	:return: floquet exponent"""
+	# initial conditions
+	if(initial_state==None):
+		state = [0.5 for i in range(len(ders))]
+	else:
+		state = initial_state
+	# warmup
+	for i in range(round(warmup_time/dt)):
+		state = one_step_integrator(state, ders, dt)
+	# integration up to x = thr
+	xh = state[0]
+	while((state[0] > thr and xh < thr) == False):
+		xh = state[0]
+		state = one_step_integrator(state, ders, dt)
+	# Henon trick
+	dt_over = 1.0/ders[0](state)*(state[0]-thr)
+	state = one_step_integrator(state, ders, -dt_over)
+	# get limit cycle states
+	limitc = []
+	for ph in [dph*i for i in range(floor(2*pi/dph))]:
+		limitc.append(state)
+		state = integrate_period(state, ders, dph/(2*pi)*period, dt)
+	# average
+	lc_avg = [sum([limitc[i][s] for i in range(len(limitc))])/len(limitc) for s in range(len(ders))]
+	# measure the exponent
+	exponent_sum = 0
+	exponent_measures = 0
+	for i in range(len(limitc)):
+		# state in
+		state_out = [lc_avg[s]+(limitc[i][s]-lc_avg[s])*(1+shift) for s in range(len(ders))]
+		state_1 = integrate_period(state_out, ders, period, dt)
+		state_2 = integrate_period(state_1, ders, period, dt)
+		d1 = distance(state_out, state_1)
+		d2 = distance(state_1, state_2)
+		exponent_sum += log(d1/d2)/period
+		exponent_measures += 1
+		# state out
+		state_in = [lc_avg[s]+(limitc[i][s]-lc_avg[s])*(1-shift) for s in range(len(ders))]
+		state_1 = integrate_period(state_in, ders, period, dt)
+		state_2 = integrate_period(state_1, ders, period, dt)
+		d1 = distance(state_in, state_1)
+		d2 = distance(state_1, state_2)
+		exponent_sum += log(d1/d2)/period
+		exponent_measures += 1
+	return exponent_sum/exponent_measures
+
+
 def oscillator_phase(state, ders, period, warmup_periods=5, thr=0.0, dt=0.005):
 	"""calculates the asymptotic phase of the oscillator from dynamical equations
 	
@@ -105,11 +168,29 @@ def oscillator_phase(state, ders, period, warmup_periods=5, thr=0.0, dt=0.005):
 	return 2*pi*(1-(time-dt_end)/period)
 
 
-def oscillator_PRC(ders, direction, initial_state=None, initial_warmup_periods=10, stimulation=0.05, warmup_periods=3, dph=0.1, thr=0.0, dt=0.005):
+def oscillator_amplitude(state, ders, period, floquet, zero_phase_lc, thr=0.0, dt=0.005):
+	"""calculates the isostable amplitude of the oscillator from dynamical equations
+	
+	:param state: state of the system
+	:param ders: a list of state variable derivatives
+	:param period: oscillator period
+	:param floquet: floquet exponent
+	:param zero_phase_lc: zero phase limit cycle state
+	:param thr: threshold determining zero phase (default 0.0)
+	:param dt: time step (default 0.005)
+	:return: isostable amplitude of state"""
+	phase = oscillator_phase(state, ders, period)
+	# evolve to 0 isochron
+	state = integrate_period(state, ders, (1-phase/(2*pi))*period, dt)
+	return distance(state,zero_phase_lc)*exp(floquet*phase/(2*pi)*period)
+
+
+def oscillator_PRC(ders, direction, period, initial_state=None, initial_warmup_periods=10, stimulation=0.05, warmup_periods=3, dph=0.1, thr=0.0, dt=0.005):
 	"""calculates the phase response curve from dynamical equations
 	
 	:param ders: a list of state variable derivatives
 	:param direction: direction in which the response is probed
+	:param period: oscillator period
 	:param initial_state: initial state (default None)
 	:param initial_warmup_periods: time for relaxing to the stable orbit (default 10)
 	:param stimulation: strength of the stimulation (default 0.05)
@@ -118,7 +199,6 @@ def oscillator_PRC(ders, direction, initial_state=None, initial_warmup_periods=1
 	:param thr: threshold for determining period (default 0.0)
 	:param dt: time step (default 0.005)
 	:return: the phase response curve"""
-	period = oscillator_period(ders)
 	PRC = [[dph*i for i in range(floor(2*pi/dph))],[0 for i in range(floor(2*pi/dph))]] # PRC list
 	# initial conditions
 	if(initial_state==None):
@@ -137,7 +217,8 @@ def oscillator_PRC(ders, direction, initial_state=None, initial_warmup_periods=1
 		xh = state[0]
 		state = one_step_integrator(state, ders, dt)
 	# Henon trick
-	dt_beggining = 1.0/ders[0](state)*(state[0]-thr)
+	dt_over = 1.0/ders[0](state)*(state[0]-thr)
+	state = one_step_integrator(state, ders, -dt_over)
 	# get limit cycle states
 	limitc = []
 	for ph in PRC[0]:
@@ -148,4 +229,51 @@ def oscillator_PRC(ders, direction, initial_state=None, initial_warmup_periods=1
 		state_stim = [limitc[s][i]+direction[i]*stimulation for i in range(len(state))] # shift the state
 		PRC[1][s] = (oscillator_phase(state_stim, ders, period)-PRC[0][s])/stimulation
 	return PRC
+
+
+def oscillator_ARC(ders, direction, period, floquet, initial_state=None, initial_warmup_periods=10, stimulation=0.05, dph=0.1, thr=0.0, dt=0.005):
+	"""calculates the amplitude response curve from dynamical equations
+	
+	:param ders: a list of state variable derivatives
+	:param direction: direction in which the response is probed
+	:param period: oscillator period
+	:param floquet: floquet exponent
+	:param initial_state: initial state (default None)
+	:param initial_warmup_periods: time for relaxing to the stable orbit (default 10)
+	:param stimulation: strength of the stimulation (default 0.05)
+	:param dph: phase resolution (default 0.1)
+	:param thr: threshold for determining period (default 0.0)
+	:param dt: time step (default 0.005)
+	:return: the phase response curve"""
+	ARC = [[dph*i for i in range(floor(2*pi/dph))],[0 for i in range(floor(2*pi/dph))]] # ARC list
+	# initial conditions
+	if(initial_state==None):
+		state = [0.5 for i in range(len(ders))]
+	else:
+		state = initial_state
+	# normalize the direction
+	norm = sqrt(sum(direction[i]**2 for i in range(len(direction))))
+	direction = [direction[i]/norm for i in range(len(direction))]
+	# warmup
+	for p in range(initial_warmup_periods):
+		state = integrate_period(state, ders, period, dt)
+	# integration up to x = thr (zero phase)
+	xh = state[0]
+	while((state[0] > thr and xh < thr) == False):
+		xh = state[0]
+		state = one_step_integrator(state, ders, dt)
+	# Henon trick
+	dt_over = 1.0/ders[0](state)*(state[0]-thr)
+	state = one_step_integrator(state, ders, -dt_over)
+	zero_phase_lc = state.copy()
+	# get limit cycle states
+	limitc = []
+	for ph in ARC[0]:
+		limitc.append(state)
+		state = integrate_period(state, ders, dph/(2*pi)*period, dt)
+	# shift the states and evaluate the amplitude difference
+	for s in range(len(ARC[0])):
+		state_stim = [limitc[s][i]+direction[i]*stimulation for i in range(len(state))] # shift the state
+		ARC[1][s] = oscillator_amplitude(state_stim, ders, period, floquet, zero_phase_lc)/stimulation
+	return ARC
 
