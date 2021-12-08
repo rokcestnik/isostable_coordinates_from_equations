@@ -11,6 +11,12 @@ def distance(state1, state2):
 	return sqrt(sum((state1[i]-state2[i])**2 for i in range(len(state1))))
 
 
+def set_initial_state(initial_state, ders):
+	if(initial_state==None):
+		return [0.5 for i in range(len(ders))]
+	return initial_state
+
+
 def one_step_integrator(state, ders, dt):
 	"""RK4 integrates state with derivative for one step of dt
 	
@@ -35,18 +41,55 @@ def one_step_integrator(state, ders, dt):
 	return statef
 
 
-def integrate_period(state, ders, period, dt):
+def integrate_period(state, ders, period, dt=0.005):
 	"""integrates state with derivative for one period
 	
 	:param state: state of the variables
 	:param ders: derivative functions
 	:param period: period of integration
-	:param dt: time step
+	:param dt: time step (default 0.005)
 	:return: state after one period"""
 	for i in range(floor(period/dt)):
 		state = one_step_integrator(state, ders, dt)
 	state = one_step_integrator(state, ders, period-floor(period/dt)*dt)
 	return state
+
+
+def integrate_up_to_thr(state, ders, thr, dt=0.005):
+	"""integrates state with derivative for up to x = thr
+	
+	:param state: state of the variables
+	:param ders: derivative functions
+	:param thr: threshold
+	:param dt: time step (default 0.005)
+	:return: state at threshold crossing"""
+	xh = state[0]
+	while((state[0] > thr and xh < thr) == False):
+		xh = state[0]
+		state = one_step_integrator(state, ders, dt)
+	# Henon trick
+	dt_over = 1.0/ders[0](state)*(state[0]-thr)
+	state = one_step_integrator(state, ders, -dt_over)
+	return state
+
+
+def time_up_to_thr(state, ders, thr, dt=0.005):
+	"""counts time up to x = thr
+	
+	:param state: state of the variables
+	:param ders: derivative functions
+	:param thr: threshold
+	:param dt: time step (default 0.005)
+	:return: time until threshold crossing"""
+	time = 0
+	xh = state[0]
+	while((state[0] > thr and xh < thr) == False):
+		xh = state[0]
+		state = one_step_integrator(state, ders, dt)
+		time += dt
+	# Henon trick
+	dt_over = 1.0/ders[0](state)*(state[0]-thr)
+	return time-dt_over
 
 
 def oscillator_period(ders, initial_state=None, warmup_time=1500.0, thr=0.0, dt=0.005):
@@ -59,65 +102,56 @@ def oscillator_period(ders, initial_state=None, warmup_time=1500.0, thr=0.0, dt=
 	:param dt: time step (default 0.005)
 	:return: natural period"""
 	# initial conditions
-	if(initial_state==None):
-		state = [0.5 for i in range(len(ders))]
-	else:
-		state = initial_state
+	state = set_initial_state(initial_state, ders)
 	# warmup
-	for i in range(round(warmup_time/dt)):
-		state = one_step_integrator(state, ders, dt)
+	state = integrate_period(state, ders, warmup_time, dt)
 	# integration up to x = thr
-	xh = state[0]
-	while((state[0] > thr and xh < thr) == False):
-		xh = state[0]
-		state = one_step_integrator(state, ders, dt)
-	# Henon trick
-	dt_beggining = 1.0/ders[0](state)*(state[0]-thr)
-	# spoil condition and go again to x = thr (still counting time)
-	xh = state[0]
-	time = 0
-	while((state[0] > thr and xh < thr) == False):
-		xh = state[0]
-		state = one_step_integrator(state, ders, dt)
-		time = time + dt
-	# another Henon trick
-	dt_end = 1.0/ders[0](state)*(state[0]-thr)
-	return time + dt_beggining - dt_end
+	state = integrate_up_to_thr(state, ders, thr, dt)
+	return time_up_to_thr(state, ders, thr, dt)
 
 
-def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shift=0.05, dph=0.1, thr=0.0, dt=0.005):
+def sample_limit_cycle(ders, sampling, period=None, initial_state=None, warmup_time=1500.0, thr=0.0, dt=0.005):
+	"""samples the limit cycle
+	
+	:param ders: a list of state variable derivatives
+	:param sampling: the number of samples
+	:param initial_state: initial state (default None)
+	:param warmup_time: time for relaxing to the stable orbit (default 1500)
+	:param thr: threshold for determining period (default 0.0)
+	:param dt: time step (default 0.005)
+	:return: sampled limit cycle"""
+	# initial conditions
+	state = set_initial_state(initial_state, ders)
+	# warmup
+	state = integrate_period(state, ders, warmup_time, dt)
+	# if period == None, then calculate it
+	if(period == None): 
+		state = integrate_up_to_thr(state, ders, thr, dt)
+		period = time_up_to_thr(state, ders, thr, dt)
+	# integration up to x = thr
+	integrate_up_to_thr(state, ders, thr, dt)
+	# now sample the limit cycle
+	limit_cycle = []
+	for i in range(sampling):
+		limit_cycle.append(state)
+		state = integrate_period(state, ders, period/sampling, dt)
+	return limit_cycle
+
+
+def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shift=0.05, sampling=25, thr=0.0, dt=0.005):
 	"""calculates the floquet exponent of the oscillator from dynamical equations
 	
 	:param ders: a list of state variable derivatives
 	:param period: oscillator period
 	:param initial_state: initial state (default None)
-	:param warmup_time: time for relaxing to the stable orbit (default 1000)
+	:param warmup_time: time for relaxing to the stable orbit (default 1500)
 	:param shift: proportional shift of the points from the limit cycle (default 0.01)
-	:param dph: phase resolution (default 0.1)
+	:param sampling: limit cycle sampling (default 25)
 	:param thr: threshold for determining period (default 0.0)
 	:param dt: time step (default 0.005)
 	:return: floquet exponent"""
-	# initial conditions
-	if(initial_state==None):
-		state = [0.5 for i in range(len(ders))]
-	else:
-		state = initial_state
-	# warmup
-	for i in range(round(warmup_time/dt)):
-		state = one_step_integrator(state, ders, dt)
-	# integration up to x = thr
-	xh = state[0]
-	while((state[0] > thr and xh < thr) == False):
-		xh = state[0]
-		state = one_step_integrator(state, ders, dt)
-	# Henon trick
-	dt_over = 1.0/ders[0](state)*(state[0]-thr)
-	state = one_step_integrator(state, ders, -dt_over)
-	# get limit cycle states
-	limitc = []
-	for ph in [dph*i for i in range(floor(2*pi/dph))]:
-		limitc.append(state)
-		state = integrate_period(state, ders, dph/(2*pi)*period, dt)
+	# sample limit cycle
+	limitc = sample_limit_cycle(ders, sampling, period, initial_state, warmup_time, thr, dt)
 	# average
 	lc_avg = [sum([limitc[i][s] for i in range(len(limitc))])/len(limitc) for s in range(len(ders))]
 	# measure the exponent
@@ -154,18 +188,10 @@ def oscillator_phase(state, ders, period, warmup_periods=5, thr=0.0, dt=0.005):
 	:param dt: time step (default 0.005)
 	:return: asymptotic phase of state"""
 	# integrate for some periods (relax to the limit cycle)
-	for p in range(warmup_periods):
-		state = integrate_period(state, ders, period, dt)
+	state = integrate_period(state, ders, warmup_periods*period, dt)
 	# go to x = thr (counting time)
-	time = 0
-	xh = state[0]
-	while((state[0] > thr and xh < thr) == False):
-		xh = state[0]
-		state = one_step_integrator(state, ders, dt)
-		time = time + dt
-	# Henon trick
-	dt_end = 1.0/ders[0](state)*(state[0]-thr)
-	return 2*pi*(1-(time-dt_end)/period)
+	time = time_up_to_thr(state, ders, thr, dt)
+	return 2*pi*(1-time/period)
 
 
 def inside_limit_cycle(state, ders, period, dt=0.005):
