@@ -115,6 +115,7 @@ def sample_limit_cycle(ders, sampling, period=None, initial_state=None, warmup_t
 	
 	:param ders: a list of state variable derivatives
 	:param sampling: the number of samples
+	:param period: oscillator period (default None - gets calculated)
 	:param initial_state: initial state (default None)
 	:param warmup_time: time for relaxing to the stable orbit (default 1500)
 	:param thr: threshold for determining period (default 0.0)
@@ -138,7 +139,7 @@ def sample_limit_cycle(ders, sampling, period=None, initial_state=None, warmup_t
 	return limit_cycle
 
 
-def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shift=0.05, sampling=25, thr=0.0, dt=0.005):
+def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shift=0.01, sampling=25, thr=0.0, dt=0.005):
 	"""calculates the floquet exponent of the oscillator from dynamical equations
 	
 	:param ders: a list of state variable derivatives
@@ -158,7 +159,7 @@ def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shi
 	exponent_sum = 0
 	exponent_measures = 0
 	for i in range(len(limitc)):
-		# state in
+		# state out
 		state_out = [lc_avg[s]+(limitc[i][s]-lc_avg[s])*(1+shift) for s in range(len(ders))]
 		state_1 = integrate_period(state_out, ders, period, dt)
 		state_2 = integrate_period(state_1, ders, period, dt)
@@ -166,7 +167,7 @@ def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shi
 		d2 = distance(state_1, state_2)
 		exponent_sum += log(d1/d2)/period
 		exponent_measures += 1
-		# state out
+		# state in
 		state_in = [lc_avg[s]+(limitc[i][s]-lc_avg[s])*(1-shift) for s in range(len(ders))]
 		state_1 = integrate_period(state_in, ders, period, dt)
 		state_2 = integrate_period(state_1, ders, period, dt)
@@ -303,3 +304,44 @@ def oscillator_ARC(ders, direction, period, floquet, initial_state=None, initial
 		state_stim = [limitc[s][i]+direction[i]*stimulation for i in range(len(limitc[s]))] # shift the state
 		ARC[1][s] = oscillator_amplitude(state_stim, ders, period, floquet, limitc[0], phase_warmup_periods=1)/stimulation
 	return ARC
+
+
+def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, initial_state=None, warmup_periods=10, thr=0.0, dt=0.005):
+	"""samples the isostable close to the limit cycle
+	
+	:param ders: a list of state variable derivatives
+	:param sampling: the number of samples
+	:param period: oscillator period
+	:param floquet: floquet exponent
+	:param sign: whether the isostable is inside or outside the limit cycle (1 means out, -1 in)
+	:param shift: proportional shift of the points from the limit cycle (default 0.005)
+	:param initial_state: initial state (default None)
+	:param warmup_periods: number of periods to relax to the limit cycle (default 10)
+	:param thr: threshold for determining period (default 0.0)
+	:param dt: time step (default 0.005)
+	:return: sampled isostable close to limit cycle"""
+	# calculate the adjustment factor
+	factor = exp(floquet*period/sampling)
+	# sample limit cycle
+	limitc = sample_limit_cycle(ders, sampling, period, initial_state, warmup_periods*period, thr, dt)
+	# average
+	lc_avg = [sum([limitc[i][s] for i in range(len(limitc))])/len(limitc) for s in range(len(ders))]
+	# shift the first point
+	state_sh = [lc_avg[s]+(limitc[0][s]-lc_avg[s])*(1+sign*shift) for s in range(len(ders))]
+	# estimate the phase and integrate the phase appropriately so its aligned with the point on the limit cycle
+	phase = oscillator_phase(state_sh, ders, period)
+	print("phase = "+str(phase))
+	if(phase > pi):
+		phase = phase-2*pi
+	state_sh = integrate_period(state_sh, ders, -phase/(2*pi)*period, -phase/abs(phase)*dt)
+	phase = oscillator_phase(state_sh, ders, period)
+	print("phase after = "+str(phase))
+	# now integrate the state, each time adjusting for amplitude decay
+	iso = []
+	for s in range(sampling):
+		iso.append(state_sh)
+		state_sh = integrate_period(state_sh, ders, period/sampling, dt)
+		# adjust for amplitude decay
+		state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*factor for i in range(len(ders))]
+	return iso
+

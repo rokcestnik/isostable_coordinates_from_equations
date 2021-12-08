@@ -29,3 +29,22 @@ pyplot.grid(linestyle=':')
 pyplot.xlabel(r"$\varphi$")
 pyplot.ylabel(r"$Z(\varphi), A(\varphi)$")
 pyplot.show()
+
+# limit cycle
+limitc = sample_limit_cycle(ders, 300, period)
+iso_out = sample_local_isostable(ders, 300, period, floquet, 1)
+iso_in = sample_local_isostable(ders, 300, period, floquet, -1)
+
+limitc_phases = [oscillator_phase(limitc[i],ders,period) for i in range(len(limitc))]
+iso_out_phases = [oscillator_phase(iso_out[i],ders,period) for i in range(len(iso_out))]
+iso_in_phases = [oscillator_phase(iso_in[i],ders,period) for i in range(len(iso_in))]
+
+pyplot.plot(limitc_phases)
+pyplot.plot(iso_out_phases)
+pyplot.plot(iso_in_phases)
+pyplot.show()
+
+pyplot.plot([limitc[i][0] for i in range(len(limitc))], [limitc[i][1] for i in range(len(limitc))])
+pyplot.plot([iso_out[i][0] for i in range(len(iso_out))], [iso_out[i][1] for i in range(len(iso_out))])
+pyplot.plot([iso_in[i][0] for i in range(len(iso_in))], [iso_in[i][1] for i in range(len(iso_in))])
+pyplot.show()
