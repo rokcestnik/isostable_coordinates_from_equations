@@ -13,11 +13,11 @@ ders = [dx,dy]
 
 # phase response curve
 period = oscillator_period(ders)
-prc = oscillator_PRC(ders, [1,0], period, dph=0.05)
+prc = oscillator_PRC(ders, [1,0], period)
 
 # amplitude response curve
 floquet = oscillator_floquet(ders,period)
-arc = oscillator_ARC(ders, [1,0], period, floquet, stimulation=0.005, dph=0.05)
+arc = oscillator_ARC(ders, [1,0], period, floquet)
 
 # plot
 pyplot.plot(prc[0], prc[1], c='b', label=r"$Z(\varphi)$")
