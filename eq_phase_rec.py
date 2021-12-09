@@ -320,8 +320,6 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 	:param thr: threshold for determining period (default 0.0)
 	:param dt: time step (default 0.005)
 	:return: sampled isostable close to limit cycle"""
-	# calculate the adjustment factor
-	factor = exp(floquet*period/sampling)
 	# sample limit cycle
 	limitc = sample_limit_cycle(ders, sampling, period, initial_state, warmup_periods*period, thr, dt)
 	# average
@@ -330,18 +328,31 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 	state_sh = [lc_avg[s]+(limitc[0][s]-lc_avg[s])*(1+sign*shift) for s in range(len(ders))]
 	# estimate the phase and integrate the phase appropriately so its aligned with the point on the limit cycle
 	phase = oscillator_phase(state_sh, ders, period)
-	print("phase = "+str(phase))
+	print("phase = "+str(phase)) #del
 	if(phase > pi):
 		phase = phase-2*pi
 	state_sh = integrate_period(state_sh, ders, -phase/(2*pi)*period, -phase/abs(phase)*dt)
-	phase = oscillator_phase(state_sh, ders, period)
-	print("phase after = "+str(phase))
+	phase = oscillator_phase(state_sh, ders, period) #del
+	print("phase after = "+str(phase)) #del
+	ampl0 = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0]) # maybe del
 	# now integrate the state, each time adjusting for amplitude decay
 	iso = []
 	for s in range(sampling):
 		iso.append(state_sh)
 		state_sh = integrate_period(state_sh, ders, period/sampling, dt)
 		# adjust for amplitude decay
+		factor = exp(floquet*period/sampling)
 		state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*factor for i in range(len(ders))]
+		# additionally adjust for any small phase shift due to higher order effects (if it were infinitesimal this was not needed)
+		phase_diff = 2*pi*(s+1)/sampling-oscillator_phase(state_sh, ders, period)
+		state_sh = integrate_period(state_sh, ders, phase_diff/(2*pi)*period, phase_diff/abs(phase_diff)*dt)
+		ampl = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0])
+		ampl_lc = oscillator_amplitude(limitc[s], ders, period, floquet, limitc[0]) #del
+		#print("ampl0 = "+str(ampl0)+"   ampl = "+str(ampl)+"    ampl_lc = "+str(ampl_lc)) #del
+		state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*(ampl0/ampl) for i in range(len(ders))]
+		#print("phase dif = "+str(phase_diff))
+		#factor = exp(floquet*phase_diff/(2*pi)*period)
+		#print("factor="+str(factor))
+		#state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*factor for i in range(len(ders))]
 	return iso
 

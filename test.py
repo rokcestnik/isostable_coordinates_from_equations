@@ -20,7 +20,7 @@ floquet = oscillator_floquet(ders,period)
 arc = oscillator_ARC(ders, [1,0], period, floquet)
 
 # plot
-pyplot.plot(prc[0], prc[1], c='b', label=r"$Z(\varphi)$")
+"""pyplot.plot(prc[0], prc[1], c='b', label=r"$Z(\varphi)$")
 pyplot.plot(arc[0], arc[1], c='#DD9900', label=r"$A(\varphi)$")
 pyplot.plot([0,2*pi],[0,0], c='k', alpha=0.4)
 pyplot.legend()
@@ -28,20 +28,29 @@ pyplot.xticks([0,pi/2,pi,3*pi/2,2*pi],[0,r"$\pi/2$",r"$\pi$",r"$3\pi/2$",r"$2\pi
 pyplot.grid(linestyle=':')
 pyplot.xlabel(r"$\varphi$")
 pyplot.ylabel(r"$Z(\varphi), A(\varphi)$")
-pyplot.show()
+pyplot.show()"""
 
 # limit cycle
-limitc = sample_limit_cycle(ders, 300, period)
-iso_out = sample_local_isostable(ders, 300, period, floquet, 1)
-iso_in = sample_local_isostable(ders, 300, period, floquet, -1)
+limitc = sample_limit_cycle(ders, 250, period)
+iso_out = sample_local_isostable(ders, 250, period, floquet, 1)
+iso_in = sample_local_isostable(ders, 250, period, floquet, -1)
 
 limitc_phases = [oscillator_phase(limitc[i],ders,period) for i in range(len(limitc))]
 iso_out_phases = [oscillator_phase(iso_out[i],ders,period) for i in range(len(iso_out))]
 iso_in_phases = [oscillator_phase(iso_in[i],ders,period) for i in range(len(iso_in))]
 
+limitc_ampls = [oscillator_amplitude(limitc[i], ders, period, floquet, limitc[0]) for i in range(len(limitc))]
+iso_out_ampls = [oscillator_amplitude(iso_out[i],ders, period, floquet, limitc[0]) for i in range(len(iso_out))]
+iso_in_ampls = [oscillator_amplitude(iso_in[i], ders, period, floquet, limitc[0]) for i in range(len(iso_in))]
+
 pyplot.plot(limitc_phases)
 pyplot.plot(iso_out_phases)
 pyplot.plot(iso_in_phases)
+pyplot.show()
+
+pyplot.plot(limitc_ampls)
+pyplot.plot(iso_out_ampls)
+pyplot.plot(iso_in_ampls)
 pyplot.show()
 
 pyplot.plot([limitc[i][0] for i in range(len(limitc))], [limitc[i][1] for i in range(len(limitc))])
