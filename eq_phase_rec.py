@@ -136,6 +136,7 @@ def sample_limit_cycle(ders, sampling, period=None, initial_state=None, warmup_t
 	for i in range(sampling):
 		limit_cycle.append(state)
 		state = integrate_period(state, ders, period/sampling, dt)
+	limit_cycle.append(limit_cycle[0]) # close the curve
 	return limit_cycle
 
 
@@ -310,7 +311,7 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 	"""samples the isostable close to the limit cycle
 	
 	:param ders: a list of state variable derivatives
-	:param sampling: the number of samples
+	:param sampling: the number of samples (typically should be 200 or more to work properly)
 	:param period: oscillator period
 	:param floquet: floquet exponent
 	:param sign: whether the isostable is inside or outside the limit cycle (1 means out, -1 in)
@@ -328,13 +329,11 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 	state_sh = [lc_avg[s]+(limitc[0][s]-lc_avg[s])*(1+sign*shift) for s in range(len(ders))]
 	# estimate the phase and integrate the phase appropriately so its aligned with the point on the limit cycle
 	phase = oscillator_phase(state_sh, ders, period)
-	print("phase = "+str(phase)) #del
 	if(phase > pi):
 		phase = phase-2*pi
 	state_sh = integrate_period(state_sh, ders, -phase/(2*pi)*period, -phase/abs(phase)*dt)
-	phase = oscillator_phase(state_sh, ders, period) #del
-	print("phase after = "+str(phase)) #del
-	ampl0 = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0]) # maybe del
+	# estimate the amplitude for reference throughout the sampling
+	ampl0 = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0])
 	# now integrate the state, each time adjusting for amplitude decay
 	iso = []
 	for s in range(sampling):
@@ -346,13 +345,36 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 		# additionally adjust for any small phase shift due to higher order effects (if it were infinitesimal this was not needed)
 		phase_diff = 2*pi*(s+1)/sampling-oscillator_phase(state_sh, ders, period)
 		state_sh = integrate_period(state_sh, ders, phase_diff/(2*pi)*period, phase_diff/abs(phase_diff)*dt)
+		# and again adjust amplitude by measuring it
 		ampl = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0])
-		ampl_lc = oscillator_amplitude(limitc[s], ders, period, floquet, limitc[0]) #del
-		#print("ampl0 = "+str(ampl0)+"   ampl = "+str(ampl)+"    ampl_lc = "+str(ampl_lc)) #del
 		state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*(ampl0/ampl) for i in range(len(ders))]
-		#print("phase dif = "+str(phase_diff))
-		#factor = exp(floquet*phase_diff/(2*pi)*period)
-		#print("factor="+str(factor))
-		#state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*factor for i in range(len(ders))]
+	iso.append(iso[0]) # close the curve
 	return iso
 
+
+def oscillator_isostables(ders, local_iso_in, local_iso_out, period, floquet, number_of_periods=5, isostables_per_period=2, dt=0.005):
+	"""estimates the isostables both inside and outside of the limit cycle
+	
+	:param ders: a list of state variable derivatives
+	:param local_iso_in: sampling of a local isostable inside the limit cycle
+	:param local_iso_out: sampling of a local isostable outside the limit cycle
+	:param period: oscillator period
+	:param floquet: floquet exponent
+	:param number_of_periods: how many periods to evolve (default 5)
+	:param isostables_per_period: how many isostables to plot per period (default 2)
+	:param dt: time step (default 0.005)
+	:return: isostables of the limit cycle"""
+	# initialize running isostables
+	iso_in = local_iso_in.copy()
+	iso_out = local_iso_out.copy()
+	# declare the array of isostables
+	isos = [iso_in, iso_out]
+	# evolve the isostables and save them
+	evolve_time = period/isostables_per_period
+	for e in range(int(number_of_periods*isostables_per_period)):
+		for i in range(len(iso_in)):
+			iso_in[i] = integrate_period(iso_in[i], ders, -evolve_time, -dt)
+			iso_out[i] = integrate_period(iso_out[i], ders, -evolve_time, -dt)
+		isos.append(iso_in.copy())
+		isos.append(iso_out.copy())
+	return isos
