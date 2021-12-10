@@ -140,15 +140,15 @@ def sample_limit_cycle(ders, sampling, period=None, initial_state=None, warmup_t
 	return limit_cycle
 
 
-def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shift=0.01, sampling=25, thr=0.0, dt=0.005):
+def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shift=0.005, sampling=100, thr=0.0, dt=0.005):
 	"""calculates the floquet exponent of the oscillator from dynamical equations
 	
 	:param ders: a list of state variable derivatives
 	:param period: oscillator period
 	:param initial_state: initial state (default None)
 	:param warmup_time: time for relaxing to the stable orbit (default 1500)
-	:param shift: proportional shift of the points from the limit cycle (default 0.01)
-	:param sampling: limit cycle sampling (default 25)
+	:param shift: proportional shift of the points from the limit cycle (default 0.005)
+	:param sampling: limit cycle sampling (default 100)
 	:param thr: threshold for determining period (default 0.0)
 	:param dt: time step (default 0.005)
 	:return: floquet exponent"""
@@ -419,3 +419,38 @@ def oscillator_isochrons(ders, local_iso_in, local_iso_out, amplitude0, period, 
 	iso_len = len(isochrons_in[0])
 	isochrons = [[isochrons_in[i][iso_len-1-j] for j in range(iso_len)]+isochrons_out[i] for i in range(0,N,isochron_resolution)]
 	return isochrons
+
+
+def oscillator_isochrons_isostables(ders, sampling=250, number_of_isostables=10, amplitude_unit=0.05, isochron_resolution=10, amplitude_domain=1, floquet_sampling=100, initial_shift=0.005, initial_state=None, initial_warmup_time=1500, warmup_periods=10, thr=0.0, dt=0.005):
+	"""estimates the isochrons and isostables of the limit cycle
+	
+	:param ders: a list of state variable derivatives
+	:param sampling: the number of samples (typically should be 200 or more to work properly) (default 250)
+	:param number_of_isostables: how many isostables to estimate (default 10)
+	:param amplitude_unit: amplitude difference between subsequent isostables (default 0.05)
+	:param isochron_resolution: every which isochron is saved (default 10)
+	:param amplitude_domain: amplitude range of isochrons - up to which amplitude to estimate (default 1)
+	:param floquet_sampling: limit cycle sampling for floquet estimation (default 100)
+	:param initial_shift: proportional shift of the points from the limit cycle (default 0.005)
+	:param initial_state: initial state (default None)
+	:param initial_warmup_time: time for relaxing to the stable orbit (default 1500)
+	:param warmup_periods: warmup time in periods used later for local isostables (default 10)
+	:param thr: threshold for determining period (default 0.0)
+	:param dt: time step (default 0.005)
+	:return: isochrons and isostables of the limit cycle"""
+	# natural period
+	period = oscillator_period(ders, initial_state=initial_state, warmup_time=initial_warmup_time, thr=thr, dt=dt)
+	# floquet exponent
+	floquet = oscillator_floquet(ders, period, initial_state=initial_state, warmup_time=initial_warmup_time, shift=initial_shift, sampling=floquet_sampling, thr=thr, dt=dt)
+	# limit cycle
+	limitc = sample_limit_cycle(ders, sampling, period, initial_state=initial_state, warmup_time=initial_warmup_time, thr=thr, dt=dt)
+	# local isostables
+	local_iso_in = sample_local_isostable(ders, sampling, period, floquet, -1, shift=initial_shift, initial_state=initial_state, warmup_periods=initial_warmup_time, thr=thr, dt=dt)
+	local_iso_out = sample_local_isostable(ders, sampling, period, floquet, 1, shift=initial_shift, initial_state=initial_state, warmup_periods=initial_warmup_time, thr=thr, dt=dt)
+	# amplitude at local isostable for reference
+	amplitude0 = oscillator_amplitude(local_iso_out[0], ders, period, floquet, limitc[0], thr=thr, dt=dt)
+	# isostables
+	isostables = oscillator_isostables(ders, local_iso_in, local_iso_out, amplitude0, period, floquet, number_of_isostables=number_of_isostables, amplitude_unit=amplitude_unit, dt=dt)
+	# isochrons
+	isochrons = oscillator_isochrons(ders, local_iso_in, local_iso_out, amplitude0, period, floquet, isochron_resolution=isochron_resolution, amplitude_domain=amplitude_domain, dt=dt)
+	return isochrons, isostables
