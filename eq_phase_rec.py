@@ -352,29 +352,33 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 	return iso
 
 
-def oscillator_isostables(ders, local_iso_in, local_iso_out, period, floquet, number_of_periods=5, isostables_per_period=2, dt=0.005):
+def oscillator_isostables(ders, local_iso_in, local_iso_out, amplitude0, period, floquet, number_of_isostables=10, amplitude_unit=0.05, dt=0.005):
 	"""estimates the isostables both inside and outside of the limit cycle
 	
 	:param ders: a list of state variable derivatives
 	:param local_iso_in: sampling of a local isostable inside the limit cycle
 	:param local_iso_out: sampling of a local isostable outside the limit cycle
+	:param amplitude0: the isostable amplitude of local isostables
 	:param period: oscillator period
 	:param floquet: floquet exponent
-	:param number_of_periods: how many periods to evolve (default 5)
-	:param isostables_per_period: how many isostables to plot per period (default 2)
+	:param number_of_isostables: how many isostables to estimate (default 10)
+	:param amplitude_unit: amplitude difference between subsequent isostables (default 0.05)
 	:param dt: time step (default 0.005)
 	:return: isostables of the limit cycle"""
 	# initialize running isostables
 	iso_in = local_iso_in.copy()
 	iso_out = local_iso_out.copy()
 	# declare the array of isostables
-	isos = [iso_in, iso_out]
+	isos = []
+	# first evolve time to amplitude 1
+	evolve_time = log(amplitude_unit/amplitude0)/floquet
 	# evolve the isostables and save them
-	evolve_time = period/isostables_per_period
-	for e in range(int(number_of_periods*isostables_per_period)):
+	for n in range(1,number_of_isostables+1):
 		for i in range(len(iso_in)):
 			iso_in[i] = integrate_period(iso_in[i], ders, -evolve_time, -dt)
 			iso_out[i] = integrate_period(iso_out[i], ders, -evolve_time, -dt)
 		isos.append(iso_in.copy())
 		isos.append(iso_out.copy())
+		# subsequent evolve times (from n to n+1)
+		evolve_time = log((n+1)/n)/floquet
 	return isos

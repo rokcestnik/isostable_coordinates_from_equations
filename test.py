@@ -31,9 +31,8 @@ pyplot.ylabel(r"$Z(\varphi), A(\varphi)$")
 pyplot.show()"""
 
 # limit cycle
-"""
 limitc = sample_limit_cycle(ders, 250, period)
-iso_out = sample_local_isostable(ders, 250, period, floquet, 1)
+"""iso_out = sample_local_isostable(ders, 250, period, floquet, 1)
 iso_in = sample_local_isostable(ders, 250, period, floquet, -1)
 
 limitc_phases = [oscillator_phase(limitc[i],ders,period) for i in range(len(limitc))]
@@ -62,7 +61,9 @@ pyplot.show()"""
 
 local_iso_in = sample_local_isostable(ders, 250, period, floquet, -1)
 local_iso_out = sample_local_isostable(ders, 250, period, floquet, 1)
-isostables = oscillator_isostables(ders, local_iso_in, local_iso_out, period, floquet)
+amplitude0 = oscillator_amplitude(local_iso_out[0], ders, period, floquet, limitc[0])
+isostables = oscillator_isostables(ders, local_iso_in, local_iso_out, amplitude0, period, floquet)
 for iso in isostables:
-	pyplot.plot([iso[i][0] for i in range(len(iso))],[iso[i][1] for i in range(len(iso))])
+	pyplot.plot([iso[i][0] for i in range(len(iso))],[iso[i][1] for i in range(len(iso))],'#777777')
+pyplot.plot([limitc[i][0] for i in range(len(limitc))],[limitc[i][1] for i in range(len(limitc))],'#000000')
 pyplot.show()
