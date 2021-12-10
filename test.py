@@ -63,7 +63,10 @@ local_iso_in = sample_local_isostable(ders, 250, period, floquet, -1)
 local_iso_out = sample_local_isostable(ders, 250, period, floquet, 1)
 amplitude0 = oscillator_amplitude(local_iso_out[0], ders, period, floquet, limitc[0])
 isostables = oscillator_isostables(ders, local_iso_in, local_iso_out, amplitude0, period, floquet)
+isochrons = oscillator_isochrons(ders, local_iso_in, local_iso_out, amplitude0, period, floquet)
 for iso in isostables:
-	pyplot.plot([iso[i][0] for i in range(len(iso))],[iso[i][1] for i in range(len(iso))],'#777777')
-pyplot.plot([limitc[i][0] for i in range(len(limitc))],[limitc[i][1] for i in range(len(limitc))],'#000000')
+	pyplot.plot([iso[i][0] for i in range(len(iso))],[iso[i][1] for i in range(len(iso))], '#888888')
+for iso in isochrons:
+	pyplot.plot([iso[i][0] for i in range(len(iso))],[iso[i][1] for i in range(len(iso))], '#CC8800')
+pyplot.plot([limitc[i][0] for i in range(len(limitc))],[limitc[i][1] for i in range(len(limitc))], lw=2, c='#000000')
 pyplot.show()

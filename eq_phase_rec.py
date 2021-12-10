@@ -358,7 +358,7 @@ def oscillator_isostables(ders, local_iso_in, local_iso_out, amplitude0, period,
 	:param ders: a list of state variable derivatives
 	:param local_iso_in: sampling of a local isostable inside the limit cycle
 	:param local_iso_out: sampling of a local isostable outside the limit cycle
-	:param amplitude0: the isostable amplitude of local isostables
+	:param amplitude0: the amplitude of local isostables
 	:param period: oscillator period
 	:param floquet: floquet exponent
 	:param number_of_isostables: how many isostables to estimate (default 10)
@@ -382,3 +382,40 @@ def oscillator_isostables(ders, local_iso_in, local_iso_out, amplitude0, period,
 		# subsequent evolve times (from n to n+1)
 		evolve_time = log((n+1)/n)/floquet
 	return isos
+
+
+def oscillator_isochrons(ders, local_iso_in, local_iso_out, amplitude0, period, floquet, isochron_resolution=10, amplitude_domain=1, dt=0.005):
+	"""estimates the isostables both inside and outside of the limit cycle
+	
+	:param ders: a list of state variable derivatives
+	:param local_iso_in: sampling of a local isostable inside the limit cycle
+	:param local_iso_out: sampling of a local isostable outside the limit cycle
+	:param amplitude0: the amplitude of local isostables
+	:param period: oscillator period
+	:param floquet: floquet exponent
+	:param isochron_resolution: every which isochron is saved (default 10)
+	:param amplitude_domain: amplitude range of isochrons - up to which amplitude to estimate (default 1)
+	:param dt: time step (default 0.005)
+	:return: isostables of the limit cycle"""
+	# initialize running isostables
+	iso_in = local_iso_in.copy()
+	iso_out = local_iso_out.copy()
+	# declare the array of all isochrons (as many as sampling of local isostables)
+	N = len(iso_in)-1
+	isochrons_in = [[iso_in[i]] for i in range(N)]
+	isochrons_out = [[iso_out[i]] for i in range(N)]
+	# estimate the time range and time step
+	time_range = log(amplitude_domain/amplitude0)/floquet
+	timestep = period/N
+	# integrate back in time and save in shifted isochrons
+	for t in range(1,int(time_range/timestep)+1):
+		for i in range(N):
+			iso_in[i] = integrate_period(iso_in[i], ders, -timestep, -dt)
+			iso_out[i] = integrate_period(iso_out[i], ders, -timestep, -dt)
+		for i in range(N):
+			isochrons_in[i].append(iso_in[(i+t)%N])
+			isochrons_out[i].append(iso_out[(i+t)%N])
+	# join in and out
+	iso_len = len(isochrons_in[0])
+	isochrons = [[isochrons_in[i][iso_len-1-j] for j in range(iso_len)]+isochrons_out[i] for i in range(0,N,isochron_resolution)]
+	return isochrons
