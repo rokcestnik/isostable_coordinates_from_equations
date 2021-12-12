@@ -155,7 +155,7 @@ def oscillator_floquet(ders, period, initial_state=None, warmup_time=1500.0, shi
 	:param dt: time step (default 0.005)
 	:return: floquet exponent"""
 	# sample limit cycle
-	limitc = sample_limit_cycle(ders, sampling, period, initial_state, warmup_time, thr, dt)
+	limitc = sample_limit_cycle(ders, sampling, period, initial_state, warmup_time, thr=thr, dt=dt)
 	# average
 	lc_avg = [sum([limitc[i][s] for i in range(len(limitc))])/len(limitc) for s in range(len(ders))]
 	# measure the exponent
@@ -242,7 +242,7 @@ def oscillator_amplitude(state, ders, period, floquet, zero_phase_lc, phase_warm
 	:param dt: time step (default 0.005)
 	:return: isostable amplitude of state"""
 	# get phase
-	phase = oscillator_phase(state, ders, period, phase_warmup_periods)
+	phase = oscillator_phase(state, ders, period, phase_warmup_periods, thr=thr, dt=dt)
 	# calculate time to evolve to zero isochron
 	time = (1-phase/(2*pi))*period
 	# evolve to 0 isochron
@@ -274,11 +274,11 @@ def oscillator_PRC(ders, direction, period, initial_state=None, initial_warmup_p
 	norm = sqrt(sum(direction[i]**2 for i in range(len(direction))))
 	direction = [direction[i]/norm for i in range(len(direction))]
 	# sample limit cycle
-	limitc = sample_limit_cycle(ders, sampling, period, initial_state, initial_warmup_periods*period, thr, dt)
+	limitc = sample_limit_cycle(ders, sampling, period, initial_state, initial_warmup_periods*period, thr=thr, dt=dt)
 	# shift the states and evaluate the phase difference
 	for s in range(len(PRC[0])):
 		state_stim = [limitc[s][i]+direction[i]*stimulation for i in range(len(limitc[s]))] # shift the state
-		PRC[1][s] = (oscillator_phase(state_stim, ders, period)-PRC[0][s])/stimulation
+		PRC[1][s] = (oscillator_phase(state_stim, ders, period, thr=thr)-PRC[0][s])/stimulation
 	return PRC
 
 
@@ -301,11 +301,11 @@ def oscillator_ARC(ders, direction, period, floquet, initial_state=None, initial
 	norm = sqrt(sum(direction[i]**2 for i in range(len(direction))))
 	direction = [direction[i]/norm for i in range(len(direction))]
 	# sample limit cycle
-	limitc = sample_limit_cycle(ders, sampling, period, initial_state, initial_warmup_periods*period, thr, dt)
+	limitc = sample_limit_cycle(ders, sampling, period, initial_state, initial_warmup_periods*period, thr=thr, dt=dt)
 	# shift the states and evaluate the amplitude difference
 	for s in range(len(ARC[0])):
 		state_stim = [limitc[s][i]+direction[i]*stimulation for i in range(len(limitc[s]))] # shift the state
-		ARC[1][s] = oscillator_amplitude(state_stim, ders, period, floquet, limitc[0], phase_warmup_periods=1)/stimulation
+		ARC[1][s] = oscillator_amplitude(state_stim, ders, period, floquet, limitc[0], phase_warmup_periods=1, thr=thr, dt=dt)/stimulation
 	return ARC
 
 
@@ -324,18 +324,18 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 	:param dt: time step (default 0.005)
 	:return: sampled isostable close to limit cycle"""
 	# sample limit cycle
-	limitc = sample_limit_cycle(ders, sampling, period, initial_state, warmup_periods*period, thr, dt)
+	limitc = sample_limit_cycle(ders, sampling, period, initial_state, warmup_periods*period, thr=thr, dt=dt)
 	# average
 	lc_avg = [sum([limitc[i][s] for i in range(len(limitc))])/len(limitc) for s in range(len(ders))]
 	# shift the first point
 	state_sh = [lc_avg[s]+(limitc[0][s]-lc_avg[s])*(1+sign*shift) for s in range(len(ders))]
 	# estimate the phase and integrate the phase appropriately so its aligned with the point on the limit cycle
-	phase = oscillator_phase(state_sh, ders, period)
+	phase = oscillator_phase(state_sh, ders, period, thr=thr, dt=dt)
 	if(phase > pi):
 		phase = phase-2*pi
 	state_sh = integrate_period(state_sh, ders, -phase/(2*pi)*period, -phase/abs(phase)*dt)
 	# estimate the amplitude for reference throughout the sampling
-	ampl0 = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0])
+	ampl0 = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0], thr=thr, dt=dt)
 	# now integrate the state, each time adjusting for amplitude decay
 	iso = []
 	for s in range(sampling):
@@ -345,10 +345,10 @@ def sample_local_isostable(ders, sampling, period, floquet, sign, shift=0.005, i
 		factor = exp(floquet*period/sampling)
 		state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*factor for i in range(len(ders))]
 		# additionally adjust for any small phase shift due to higher order effects (if it were infinitesimal this was not needed)
-		phase_diff = 2*pi*(s+1)/sampling-oscillator_phase(state_sh, ders, period)
+		phase_diff = 2*pi*(s+1)/sampling-oscillator_phase(state_sh, ders, period, thr=thr, dt=dt)
 		state_sh = integrate_period(state_sh, ders, phase_diff/(2*pi)*period, phase_diff/abs(phase_diff)*dt)
 		# and again adjust amplitude by measuring it
-		ampl = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0])
+		ampl = oscillator_amplitude(state_sh, ders, period, floquet, limitc[0], thr=thr, dt=dt)
 		state_sh = [limitc[s][i]+(state_sh[i]-limitc[s][i])*(ampl0/ampl) for i in range(len(ders))]
 	iso.append(iso[0]) # close the curve
 	return iso
