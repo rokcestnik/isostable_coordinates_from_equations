@@ -107,7 +107,9 @@ def oscillator_period(ders, initial_state=None, warmup_time=1500.0, thr=0.0, dt=
 	state = integrate_period(state, ders, warmup_time, dt)
 	# integration up to x = thr
 	state = integrate_up_to_thr(state, ders, thr, dt)
-	return time_up_to_thr(state, ders, thr, dt)
+	# make sure the threshold is crossed by integrating one step manually
+	state = one_step_integrator(state, ders, dt)
+	return dt+time_up_to_thr(state, ders, thr, dt)
 
 
 def sample_limit_cycle(ders, sampling, period=None, initial_state=None, warmup_time=1500.0, thr=0.0, dt=0.005):
@@ -250,7 +252,7 @@ def oscillator_amplitude(state, ders, period, floquet, zero_phase_lc, phase_warm
 		sign = -1
 	else:
 		sign = 1
-	return 0.2*sign*distance(state,zero_phase_lc)*exp(floquet*time) # multiplied with an arbitrary constant 0.2
+	return 0.5*sign*distance(state,zero_phase_lc)*exp(floquet*time) # up to an arbitrarily chosen multiplication constant
 
 
 def oscillator_PRC(ders, direction, period, initial_state=None, initial_warmup_periods=10, stimulation=0.05, warmup_periods=3, sampling=100, thr=0.0, dt=0.005):
