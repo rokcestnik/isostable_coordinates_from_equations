@@ -1,9 +1,9 @@
 from math import pi, floor, sqrt, exp, log
 
 
-###################################################
-#####   PHASE RECONSTRUCTION FROM EQUATIONS   #####
-###################################################
+##################################################################
+#####   ISOSTABLE COORDINATE RECONSTRUCTION FROM EQUATIONS   #####
+##################################################################
 
 
 def distance(state1, state2):
